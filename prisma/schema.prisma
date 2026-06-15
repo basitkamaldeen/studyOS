@@ -1,0 +1,365 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  emailVerified     Boolean   @default(false)
+  emailVerificationToken String?
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+  username          String?   @unique
+  firstName         String?
+  lastName          String?
+  avatarUrl         String?
+  xp                Int       @default(0)
+  rank              String    @default("🌲 Wood")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  notes             Note[]
+  noteVersions      NoteVersion[]
+  flashcards        Flashcard[]
+  flashcardReviews  FlashcardReview[]
+  quizzes           Quiz[]
+  quizAttempts      QuizAttempt[]
+  documents         Document[]
+  aiConversations   AIConversation[]
+  xpLogs            XPLog[]
+  streak            Streak?
+  
+  // Gamification relations
+  leaderboardEntry  LeaderboardEntry?
+  userAchievements  UserAchievement[]
+  
+  // Revision & Study
+  revisionPlans     RevisionPlan[]
+  studySessions     StudySession[]
+  
+  @@index([email])
+  @@index([username])
+}
+
+model Note {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  content     String
+  isArchived  Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  versions    NoteVersion[]
+  flashcards  Flashcard[]
+  
+  @@index([userId])
+  @@index([userId, updatedAt])
+}
+
+model NoteVersion {
+  id            String    @id @default(uuid())
+  noteId        String
+  note          Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  title         String
+  content       String
+  createdAt     DateTime  @default(now())
+  
+  user          User?     @relation(fields: [userId], references: [id])
+  userId        String?
+  
+  @@unique([noteId, versionNumber])
+  @@index([noteId])
+  @@index([userId])
+}
+
+model Flashcard {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  noteId        String?
+  note          Note?     @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  front         String
+  back          String
+  source        String?
+  sourceId      String?
+  tags          String    @default("[]")
+  difficulty    Int?
+  reviewCount   Int       @default(0)
+  correctCount  Int       @default(0)
+  easeFactor    Float     @default(2.5)
+  interval      Int       @default(0)
+  nextReview    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  reviews       FlashcardReview[]
+  
+  @@index([userId])
+  @@index([userId, nextReview])
+  @@index([userId, createdAt])
+  @@index([noteId])
+}
+
+model FlashcardReview {
+  id            String    @id @default(uuid())
+  flashcardId   String
+  flashcard     Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quality       Int
+  responseTime  Int
+  reviewedAt    DateTime  @default(now())
+  
+  @@index([flashcardId])
+  @@index([userId])
+  @@index([reviewedAt])
+}
+
+model Quiz {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  topic         String?
+  source        String?
+  sourceId      String?
+  questionCount Int       @default(0)
+  timeLimit     Int?
+  isPublic      Boolean   @default(false)
+  tags          String    @default("[]")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  questions     QuizQuestion[]
+  attempts      QuizAttempt[]
+  
+  @@index([userId])
+  @@index([topic])
+  @@index([createdAt])
+}
+
+model QuizQuestion {
+  id            String    @id @default(uuid())
+  quizId        String
+  quiz          Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question      String
+  options       String
+  correctAnswer Int
+  explanation   String?
+  points        Int       @default(1)
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now())
+  
+  answers       QuizAnswer[]
+  
+  @@index([quizId])
+  @@index([quizId, order])
+}
+
+model QuizAttempt {
+  id            String    @id @default(uuid())
+  quizId        String
+  quiz          Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score         Int       @default(0)
+  maxScore      Int       @default(0)
+  percentage    Float     @default(0)
+  timeTaken     Int?
+  completedAt   DateTime  @default(now())
+  
+  answers       QuizAnswer[]
+  
+  @@index([userId, quizId])
+  @@index([completedAt])
+}
+
+model QuizAnswer {
+  id            String    @id @default(uuid())
+  attemptId     String
+  attempt       QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      QuizQuestion @relation(fields: [questionId], references: [id])
+  selectedAnswer Int
+  isCorrect     Boolean
+  answeredAt    DateTime  @default(now())
+  
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+model Document {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileUrl       String
+  fileType      String
+  mimeType      String
+  fileSize      Int
+  extractedText String?
+  createdAt     DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model AIConversation {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  topic         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  messages      AIMessage[]
+  
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+model AIMessage {
+  id            String    @id @default(uuid())
+  conversationId String
+  conversation  AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role          String
+  content       String
+  createdAt     DateTime  @default(now())
+  
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model XPLog {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  xpEarned    Int
+  metadata    String?   @default("{}")
+  createdAt   DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Streak {
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentStreak   Int      @default(0)
+  longestStreak   Int      @default(0)
+  lastStudyDate   DateTime?
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== GAMIFICATION MODELS ====================
+
+model LeaderboardEntry {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username      String
+  avatarUrl     String?
+  xp            Int       @default(0)
+  weeklyXP      Int       @default(0)
+  monthlyXP     Int       @default(0)
+  rank          Int       @default(0)
+  streak        Int       @default(0)
+  highestStreak Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([xp])
+  @@index([weeklyXP])
+  @@index([monthlyXP])
+}
+
+model Achievement {
+  id            String    @id @default(uuid())
+  name          String    @unique
+  description   String
+  badgeIcon     String
+  badgeColor    String    @default("#FFD700")
+  xpReward      Int       @default(50)
+  criteriaType  String
+  criteriaValue Int
+  createdAt     DateTime  @default(now())
+  
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  unlockedAt    DateTime  @default(now())
+  
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([unlockedAt])
+}
+
+// ==================== REVISION & STUDY MODELS ====================
+
+model RevisionPlan {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  targetExam    String?
+  examDate      DateTime?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  tasks         RevisionTask[]
+  
+  @@index([userId])
+  @@index([isActive])
+  @@index([examDate])
+}
+
+model RevisionTask {
+  id            String        @id @default(uuid())
+  planId        String
+  plan          RevisionPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  topic         String
+  dueDate       DateTime
+  completed     Boolean       @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  
+  @@index([planId])
+  @@index([dueDate])
+  @@index([completed])
+}
+
+model StudySession {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime     DateTime      @default(now())
+  endTime       DateTime?
+  duration      Int?          // in seconds
+  type          String        // "flashcards", "quiz", "notes", "ai-tutor", "revision"
+  itemsStudied  Int?          // number of cards/questions/notes
+  xpEarned      Int           @default(0)
+  createdAt     DateTime      @default(now())
+  
+  @@index([userId])
+  @@index([userId, startTime])
+  @@index([type])
+}
