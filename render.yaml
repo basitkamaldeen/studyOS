@@ -8,10 +8,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
+      - key: PORT
+        value: 10000
       - key: JWT_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        sync: false
       - key: HUGGINGFACE_API_KEY
         sync: false
       - key: R2_ACCOUNT_ID
@@ -24,5 +26,9 @@ services:
         value: studyos
       - key: R2_PUBLIC_URL
         sync: false
-      - key: PORT
-        value: 10000
+      - key: RATE_LIMIT_TTL
+        value: 60
+      - key: RATE_LIMIT_MAX
+        value: 100
+      - key: FRONTEND_URL
+        sync: false
