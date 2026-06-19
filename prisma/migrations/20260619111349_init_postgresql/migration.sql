@@ -1,50 +1,53 @@
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
     "emailVerified" BOOLEAN NOT NULL DEFAULT false,
     "emailVerificationToken" TEXT,
     "passwordResetToken" TEXT,
-    "passwordResetExpires" DATETIME,
+    "passwordResetExpires" TIMESTAMP(3),
     "username" TEXT,
     "firstName" TEXT,
     "lastName" TEXT,
     "avatarUrl" TEXT,
     "xp" INTEGER NOT NULL DEFAULT 0,
     "rank" TEXT NOT NULL DEFAULT '🌲 Wood',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Note" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "isArchived" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Note_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Note_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "NoteVersion" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "noteId" TEXT NOT NULL,
     "versionNumber" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT,
-    CONSTRAINT "NoteVersion_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "NoteVersion_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+
+    CONSTRAINT "NoteVersion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Flashcard" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "noteId" TEXT,
     "front" TEXT NOT NULL,
@@ -55,30 +58,30 @@ CREATE TABLE "Flashcard" (
     "difficulty" INTEGER,
     "reviewCount" INTEGER NOT NULL DEFAULT 0,
     "correctCount" INTEGER NOT NULL DEFAULT 0,
-    "easeFactor" REAL NOT NULL DEFAULT 2.5,
+    "easeFactor" DOUBLE PRECISION NOT NULL DEFAULT 2.5,
     "interval" INTEGER NOT NULL DEFAULT 0,
-    "nextReview" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Flashcard_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Flashcard_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "nextReview" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Flashcard_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "FlashcardReview" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "flashcardId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "quality" INTEGER NOT NULL,
     "responseTime" INTEGER NOT NULL,
-    "reviewedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "FlashcardReview_flashcardId_fkey" FOREIGN KEY ("flashcardId") REFERENCES "Flashcard" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "FlashcardReview_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "reviewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "FlashcardReview_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Quiz" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -89,14 +92,15 @@ CREATE TABLE "Quiz" (
     "timeLimit" INTEGER,
     "isPublic" BOOLEAN NOT NULL DEFAULT false,
     "tags" TEXT NOT NULL DEFAULT '[]',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Quiz_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Quiz_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "QuizQuestion" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "quizId" TEXT NOT NULL,
     "question" TEXT NOT NULL,
     "options" TEXT NOT NULL,
@@ -104,39 +108,40 @@ CREATE TABLE "QuizQuestion" (
     "explanation" TEXT,
     "points" INTEGER NOT NULL DEFAULT 1,
     "order" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "QuizQuestion_quizId_fkey" FOREIGN KEY ("quizId") REFERENCES "Quiz" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "QuizQuestion_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "QuizAttempt" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "quizId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "score" INTEGER NOT NULL DEFAULT 0,
     "maxScore" INTEGER NOT NULL DEFAULT 0,
-    "percentage" REAL NOT NULL DEFAULT 0,
+    "percentage" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "timeTaken" INTEGER,
-    "completedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "QuizAttempt_quizId_fkey" FOREIGN KEY ("quizId") REFERENCES "Quiz" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "QuizAttempt_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "completedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "QuizAttempt_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "QuizAnswer" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "attemptId" TEXT NOT NULL,
     "questionId" TEXT NOT NULL,
     "selectedAnswer" INTEGER NOT NULL,
     "isCorrect" BOOLEAN NOT NULL,
-    "answeredAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "QuizAnswer_attemptId_fkey" FOREIGN KEY ("attemptId") REFERENCES "QuizAttempt" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "QuizAnswer_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "QuizQuestion" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "answeredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "QuizAnswer_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Document" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
     "fileUrl" TEXT NOT NULL,
@@ -144,40 +149,44 @@ CREATE TABLE "Document" (
     "mimeType" TEXT NOT NULL,
     "fileSize" INTEGER NOT NULL,
     "extractedText" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Document_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Document_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "AIConversation" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "topic" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "AIConversation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "AIConversation_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "AIMessage" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "conversationId" TEXT NOT NULL,
     "role" TEXT NOT NULL,
     "content" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "AIMessage_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "AIConversation" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AIMessage_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "XPLog" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "action" TEXT NOT NULL,
     "xpEarned" INTEGER NOT NULL,
     "metadata" TEXT DEFAULT '{}',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "XPLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "XPLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -185,14 +194,13 @@ CREATE TABLE "Streak" (
     "userId" TEXT NOT NULL,
     "currentStreak" INTEGER NOT NULL DEFAULT 0,
     "longestStreak" INTEGER NOT NULL DEFAULT 0,
-    "lastStudyDate" DATETIME,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Streak_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "lastStudyDate" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL
 );
 
 -- CreateTable
 CREATE TABLE "LeaderboardEntry" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "username" TEXT NOT NULL,
     "avatarUrl" TEXT,
@@ -202,13 +210,14 @@ CREATE TABLE "LeaderboardEntry" (
     "rank" INTEGER NOT NULL DEFAULT 0,
     "streak" INTEGER NOT NULL DEFAULT 0,
     "highestStreak" INTEGER NOT NULL DEFAULT 0,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "LeaderboardEntry_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "LeaderboardEntry_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Achievement" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "badgeIcon" TEXT NOT NULL,
@@ -216,17 +225,62 @@ CREATE TABLE "Achievement" (
     "xpReward" INTEGER NOT NULL DEFAULT 50,
     "criteriaType" TEXT NOT NULL,
     "criteriaValue" INTEGER NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Achievement_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "UserAchievement" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "achievementId" TEXT NOT NULL,
-    "unlockedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "UserAchievement_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "UserAchievement_achievementId_fkey" FOREIGN KEY ("achievementId") REFERENCES "Achievement" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "unlockedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "UserAchievement_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RevisionPlan" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "targetExam" TEXT,
+    "examDate" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RevisionPlan_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RevisionTask" (
+    "id" TEXT NOT NULL,
+    "planId" TEXT NOT NULL,
+    "topic" TEXT NOT NULL,
+    "dueDate" TIMESTAMP(3) NOT NULL,
+    "completed" BOOLEAN NOT NULL DEFAULT false,
+    "completedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RevisionTask_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StudySession" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "startTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "endTime" TIMESTAMP(3),
+    "duration" INTEGER,
+    "type" TEXT NOT NULL,
+    "itemsStudied" INTEGER,
+    "xpEarned" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "StudySession_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -354,3 +408,30 @@ CREATE INDEX "UserAchievement_unlockedAt_idx" ON "UserAchievement"("unlockedAt")
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UserAchievement_userId_achievementId_key" ON "UserAchievement"("userId", "achievementId");
+
+-- CreateIndex
+CREATE INDEX "RevisionPlan_userId_idx" ON "RevisionPlan"("userId");
+
+-- CreateIndex
+CREATE INDEX "RevisionPlan_isActive_idx" ON "RevisionPlan"("isActive");
+
+-- CreateIndex
+CREATE INDEX "RevisionPlan_examDate_idx" ON "RevisionPlan"("examDate");
+
+-- CreateIndex
+CREATE INDEX "RevisionTask_planId_idx" ON "RevisionTask"("planId");
+
+-- CreateIndex
+CREATE INDEX "RevisionTask_dueDate_idx" ON "RevisionTask"("dueDate");
+
+-- CreateIndex
+CREATE INDEX "RevisionTask_completed_idx" ON "RevisionTask"("completed");
+
+-- CreateIndex
+CREATE INDEX "StudySession_userId_idx" ON "StudySession"("userId");
+
+-- CreateIndex
+CREATE INDEX "StudySession_userId_startTime_idx" ON "StudySession"("userId", "startTime");
+
+-- CreateIndex
+CREATE INDEX "StudySession_type_idx" ON "StudySession"("type");
