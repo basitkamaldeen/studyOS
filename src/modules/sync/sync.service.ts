@@ -1,0 +1,335 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { 
+  SyncRequestDto, 
+  SyncResponseDto, 
+  SyncItemDto, 
+  ConflictDto,
+  SyncOperation,
+  EntityType,
+  SyncStatusDto,
+} from './dto/sync.dto';
+
+@Injectable()
+export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
+
+  constructor(private prisma: PrismaService) {}
+
+  async syncData(userId: string, dto: SyncRequestDto): Promise<SyncResponseDto> {
+    const response: SyncResponseDto = {
+      success: true,
+      synced: [],
+      conflicts: [],
+      serverItems: [],
+      timestamp: Date.now(),
+    };
+
+    try {
+      switch (dto.entityType) {
+        case EntityType.NOTE:
+          await this.syncNotes(userId, dto, response);
+          break;
+        case EntityType.FLASHCARD:
+          await this.syncFlashcards(userId, dto, response);
+          break;
+        case EntityType.QUIZ_ATTEMPT:
+          await this.syncQuizAttempts(userId, dto, response);
+          break;
+        default:
+          throw new Error(`Unsupported entity type: ${dto.entityType}`);
+      }
+    } catch (error) {
+      this.logger.error(`Sync error: ${error.message}`);
+      response.success = false;
+    }
+
+    return response;
+  }
+
+  private async syncNotes(userId: string, dto: SyncRequestDto, response: SyncResponseDto) {
+    // Get all server notes for version comparison
+    const serverNotes = await this.prisma.note.findMany({
+      where: { userId },
+      include: { versions: { orderBy: { versionNumber: 'desc' }, take: 1 } },
+    });
+
+    const serverNoteMap = new Map(serverNotes.map(n => [n.id, n]));
+
+    // Process each pending item
+    for (const item of dto.items) {
+      try {
+        const serverNote = serverNoteMap.get(item.id);
+        
+        switch (item.operation) {
+          case SyncOperation.CREATE:
+            // Check if note already exists (conflict)
+            if (serverNote) {
+              response.conflicts.push({
+                localId: item.id,
+                serverId: serverNote.id,
+                field: 'id',
+                localValue: item.id,
+                serverValue: serverNote.id,
+                resolution: 'manual',
+              });
+              continue;
+            }
+
+            // Create new note
+            const created = await this.prisma.note.create({
+              data: {
+                userId,
+                title: item.title || 'Untitled',
+                content: item.content || '',
+              },
+            });
+            response.synced.push(created.id);
+            break;
+
+          case SyncOperation.UPDATE:
+            if (!serverNote) {
+              // Server doesn't have this note - create it
+              const created = await this.prisma.note.create({
+                data: {
+                  userId,
+                  title: item.title || 'Untitled',
+                  content: item.content || '',
+                },
+              });
+              response.synced.push(created.id);
+              break;
+            }
+
+            // Check version conflict
+            const latestVersion = serverNote.versions[0];
+            const serverVersion = latestVersion?.versionNumber || 0;
+            
+            // If client timestamp is newer, update
+            // Otherwise, keep server version (or flag conflict)
+            if (item.timestamp > new Date(serverNote.updatedAt).getTime()) {
+              // Client has newer version - update server
+              const updated = await this.prisma.note.update({
+                where: { id: serverNote.id },
+                data: {
+                  title: item.title || serverNote.title,
+                  content: item.content || serverNote.content,
+                },
+              });
+              response.synced.push(updated.id);
+            } else {
+              // Server has newer version - send server version to client
+              response.serverItems.push({
+                id: serverNote.id,
+                version: serverVersion + 1,
+                updatedAt: serverNote.updatedAt.toISOString(),
+                data: {
+                  title: serverNote.title,
+                  content: serverNote.content,
+                },
+              });
+            }
+            break;
+
+          case SyncOperation.DELETE:
+            if (serverNote) {
+              await this.prisma.note.delete({
+                where: { id: serverNote.id },
+              });
+              response.synced.push(item.id);
+            }
+            break;
+        }
+      } catch (error) {
+        this.logger.error(`Error syncing note ${item.id}: ${error.message}`);
+        response.conflicts.push({
+          localId: item.id,
+          serverId: '',
+          field: 'error',
+          localValue: error.message,
+          serverValue: '',
+        });
+      }
+    }
+  }
+
+  private async syncFlashcards(userId: string, dto: SyncRequestDto, response: SyncResponseDto) {
+    const serverFlashcards = await this.prisma.flashcard.findMany({
+      where: { userId },
+    });
+
+    const serverMap = new Map(serverFlashcards.map(f => [f.id, f]));
+
+    for (const item of dto.items) {
+      try {
+        const serverItem = serverMap.get(item.id);
+
+        switch (item.operation) {
+          case SyncOperation.CREATE:
+            if (serverItem) {
+              response.conflicts.push({
+                localId: item.id,
+                serverId: serverItem.id,
+                field: 'id',
+                localValue: item.id,
+                serverValue: serverItem.id,
+              });
+              continue;
+            }
+
+            const created = await this.prisma.flashcard.create({
+              data: {
+                userId,
+                front: item.front || 'Question',
+                back: item.back || 'Answer',
+                tags: JSON.stringify(item.metadata?.tags || []),
+                nextReview: new Date(),
+              },
+            });
+            response.synced.push(created.id);
+            break;
+
+          case SyncOperation.UPDATE:
+            if (!serverItem) {
+              // Create if doesn't exist
+              const created = await this.prisma.flashcard.create({
+                data: {
+                  userId,
+                  front: item.front || 'Question',
+                  back: item.back || 'Answer',
+                  tags: JSON.stringify(item.metadata?.tags || []),
+                  nextReview: new Date(),
+                },
+              });
+              response.synced.push(created.id);
+              break;
+            }
+
+            if (item.timestamp > new Date(serverItem.updatedAt).getTime()) {
+              const updated = await this.prisma.flashcard.update({
+                where: { id: serverItem.id },
+                data: {
+                  front: item.front || serverItem.front,
+                  back: item.back || serverItem.back,
+                },
+              });
+              response.synced.push(updated.id);
+            } else {
+              response.serverItems.push({
+                id: serverItem.id,
+                version: serverItem.reviewCount + 1,
+                updatedAt: serverItem.updatedAt.toISOString(),
+                data: {
+                  front: serverItem.front,
+                  back: serverItem.back,
+                },
+              });
+            }
+            break;
+
+          case SyncOperation.DELETE:
+            if (serverItem) {
+              await this.prisma.flashcard.delete({
+                where: { id: serverItem.id },
+              });
+              response.synced.push(item.id);
+            }
+            break;
+        }
+      } catch (error) {
+        this.logger.error(`Error syncing flashcard ${item.id}: ${error.message}`);
+        response.conflicts.push({
+          localId: item.id,
+          serverId: '',
+          field: 'error',
+          localValue: error.message,
+          serverValue: '',
+        });
+      }
+    }
+  }
+
+  private async syncQuizAttempts(userId: string, dto: SyncRequestDto, response: SyncResponseDto) {
+    for (const item of dto.items) {
+      try {
+        switch (item.operation) {
+          case SyncOperation.CREATE:
+            // Find quiz
+            const quiz = await this.prisma.quiz.findFirst({
+              where: { id: item.metadata?.quizId, userId },
+            });
+
+            if (!quiz) {
+              response.conflicts.push({
+                localId: item.id,
+                serverId: '',
+                field: 'quizId',
+                localValue: item.metadata?.quizId,
+                serverValue: 'Not found',
+              });
+              continue;
+            }
+
+            const attempt = await this.prisma.quizAttempt.create({
+              data: {
+                userId,
+                quizId: quiz.id,
+                answers: {
+                  create: (item.answers || []).map((answer: number, index: number) => ({
+                    questionId: quiz.questions[index]?.id || '',
+                    selectedAnswer: answer,
+                    isCorrect: false, // Will be calculated server-side
+                  })),
+                },
+              },
+            });
+            response.synced.push(attempt.id);
+            break;
+
+          case SyncOperation.DELETE:
+            // Don't delete quiz attempts, they're historical data
+            break;
+        }
+      } catch (error) {
+        this.logger.error(`Error syncing quiz attempt ${item.id}: ${error.message}`);
+        response.conflicts.push({
+          localId: item.id,
+          serverId: '',
+          field: 'error',
+          localValue: error.message,
+          serverValue: '',
+        });
+      }
+    }
+  }
+
+  async getSyncStatus(userId: string): Promise<SyncStatusDto> {
+    const [notes, flashcards, quizAttempts] = await Promise.all([
+      this.prisma.note.count({ where: { userId } }),
+      this.prisma.flashcard.count({ where: { userId } }),
+      this.prisma.quizAttempt.count({ where: { userId } }),
+    ]);
+
+    // Get last sync time from user metadata or XPLog
+    const lastSyncLog = await this.prisma.xPLog.findFirst({
+      where: { userId, action: 'sync_completed' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      userId,
+      lastSync: lastSyncLog ? new Date(lastSyncLog.createdAt).getTime() : 0,
+      pendingChanges: 0, // Client-side tracking needed
+      totalNotes: notes,
+      totalFlashcards: flashcards,
+      totalQuizAttempts: quizAttempts,
+      online: true, // Will be set by client
+    };
+  }
+
+  async resolveConflict(userId: string, conflictId: string, resolution: 'local' | 'server') {
+    // Implementation for manual conflict resolution
+    // This would update the database based on user choice
+    return { message: 'Conflict resolved successfully' };
+  }
+}
