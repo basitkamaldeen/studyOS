@@ -48,7 +48,6 @@ export class SyncService {
   }
 
   private async syncNotes(userId: string, dto: SyncRequestDto, response: SyncResponseDto) {
-    // Get all server notes for version comparison
     const serverNotes = await this.prisma.note.findMany({
       where: { userId },
       include: { versions: { orderBy: { versionNumber: 'desc' }, take: 1 } },
@@ -56,14 +55,12 @@ export class SyncService {
 
     const serverNoteMap = new Map(serverNotes.map(n => [n.id, n]));
 
-    // Process each pending item
     for (const item of dto.items) {
       try {
         const serverNote = serverNoteMap.get(item.id);
         
         switch (item.operation) {
           case SyncOperation.CREATE:
-            // Check if note already exists (conflict)
             if (serverNote) {
               response.conflicts.push({
                 localId: item.id,
@@ -76,7 +73,6 @@ export class SyncService {
               continue;
             }
 
-            // Create new note
             const created = await this.prisma.note.create({
               data: {
                 userId,
@@ -89,7 +85,6 @@ export class SyncService {
 
           case SyncOperation.UPDATE:
             if (!serverNote) {
-              // Server doesn't have this note - create it
               const created = await this.prisma.note.create({
                 data: {
                   userId,
@@ -101,14 +96,10 @@ export class SyncService {
               break;
             }
 
-            // Check version conflict
             const latestVersion = serverNote.versions[0];
             const serverVersion = latestVersion?.versionNumber || 0;
             
-            // If client timestamp is newer, update
-            // Otherwise, keep server version (or flag conflict)
             if (item.timestamp > new Date(serverNote.updatedAt).getTime()) {
-              // Client has newer version - update server
               const updated = await this.prisma.note.update({
                 where: { id: serverNote.id },
                 data: {
@@ -118,7 +109,6 @@ export class SyncService {
               });
               response.synced.push(updated.id);
             } else {
-              // Server has newer version - send server version to client
               response.serverItems.push({
                 id: serverNote.id,
                 version: serverVersion + 1,
@@ -191,7 +181,6 @@ export class SyncService {
 
           case SyncOperation.UPDATE:
             if (!serverItem) {
-              // Create if doesn't exist
               const created = await this.prisma.flashcard.create({
                 data: {
                   userId,
@@ -254,9 +243,17 @@ export class SyncService {
       try {
         switch (item.operation) {
           case SyncOperation.CREATE:
-            // Find quiz
+            // Find quiz with questions included
             const quiz = await this.prisma.quiz.findFirst({
-              where: { id: item.metadata?.quizId, userId },
+              where: { 
+                id: item.metadata?.quizId,
+                userId: userId
+              },
+              include: {
+                questions: {
+                  orderBy: { order: 'asc' },
+                },
+              },
             });
 
             if (!quiz) {
@@ -265,24 +262,40 @@ export class SyncService {
                 serverId: '',
                 field: 'quizId',
                 localValue: item.metadata?.quizId,
-                serverValue: 'Not found',
+                serverValue: 'Quiz not found or access denied',
               });
               continue;
             }
 
+            // Create the attempt
             const attempt = await this.prisma.quizAttempt.create({
               data: {
                 userId,
                 quizId: quiz.id,
-                answers: {
-                  create: (item.answers || []).map((answer: number, index: number) => ({
-                    questionId: quiz.questions[index]?.id || '',
-                    selectedAnswer: answer,
-                    isCorrect: false, // Will be calculated server-side
-                  })),
-                },
               },
             });
+
+            // Create quiz answers
+            if (item.answers && Array.isArray(item.answers)) {
+              const questionIds = quiz.questions.map(q => q.id);
+              
+              for (let i = 0; i < Math.min(item.answers.length, questionIds.length); i++) {
+                const selectedAnswer = item.answers[i];
+                const questionId = questionIds[i];
+                
+                if (questionId && selectedAnswer !== undefined) {
+                  await this.prisma.quizAnswer.create({
+                    data: {
+                      attemptId: attempt.id,
+                      questionId: questionId,
+                      selectedAnswer: selectedAnswer,
+                      isCorrect: false,
+                    },
+                  });
+                }
+              }
+            }
+            
             response.synced.push(attempt.id);
             break;
 
@@ -310,7 +323,6 @@ export class SyncService {
       this.prisma.quizAttempt.count({ where: { userId } }),
     ]);
 
-    // Get last sync time from user metadata or XPLog
     const lastSyncLog = await this.prisma.xPLog.findFirst({
       where: { userId, action: 'sync_completed' },
       orderBy: { createdAt: 'desc' },
@@ -319,17 +331,15 @@ export class SyncService {
     return {
       userId,
       lastSync: lastSyncLog ? new Date(lastSyncLog.createdAt).getTime() : 0,
-      pendingChanges: 0, // Client-side tracking needed
+      pendingChanges: 0,
       totalNotes: notes,
       totalFlashcards: flashcards,
       totalQuizAttempts: quizAttempts,
-      online: true, // Will be set by client
+      online: true,
     };
   }
 
   async resolveConflict(userId: string, conflictId: string, resolution: 'local' | 'server') {
-    // Implementation for manual conflict resolution
-    // This would update the database based on user choice
     return { message: 'Conflict resolved successfully' };
   }
 }
